@@ -1,0 +1,50 @@
+name: build_$(SourceBranchName)_$(Date:yyyyMMdd)$(Rev:.r)
+
+trigger:
+  branches:
+    include:
+    - master
+
+parameters:
+  - name: containerRegistry
+    displayName: Container registry name
+    type: string
+    default: marcinlovescode
+
+  - name: containerRepository
+    displayName: Container repository name (Docker image name)
+    type: string
+    default: marcinlovescode-hello
+
+  - name: imageTag
+    displayName: image tag
+    type: string
+    default: $(Build.BuildId)
+
+  - name: resourceManagerConnectionName
+    displayName: ARM connection name
+    type: string
+    default: arm-connection
+
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+jobs:
+  - job: "Build_and_publish_artifacts"
+    steps:
+      - task: npmAuthenticate@0
+        inputs:
+          workingFile: .npmrc
+      - task: AzureCLI@2
+        displayName: 'Login to ACR'
+        inputs:
+          azureSubscription: ${{ parameters.resourceManagerConnectionName }}
+          scriptType: 'bash'
+          scriptLocation: 'inlineScript'
+          inlineScript: 'az acr login --name ${{ parameters.containerRegistry }}'
+      - script: |
+          IMAGE=${{ lower(parameters.containerRegistry) }}.azurecr.io/${{ parameters.containerRepository }}:${{ parameters.imageTag }}
+          docker build -t $IMAGE .
+          docker push $IMAGE
+        displayName: 'Build and push to ACR'
